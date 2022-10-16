@@ -4,6 +4,8 @@
 # install.packages('TTR')
 # install.packages('Zoo')
 # install.packages('statsmodels')
+# install.packages('forecast')
+install.packages('prophet')
 library(zoo)
 library(ggplot2)
 library(pdfetch)
@@ -12,27 +14,27 @@ library(TTR)
 library(lubridate)
 library(plotrix)
 library(stats)
+library(xts)
+library(forecast)
+library(prophet)
 
-data = getSymbols('BTC-USD', src = 'yahoo',auto.assign = FALSE)
 
-head(index(data))
+data <- getSymbols('BTC-USD', src = 'yahoo',auto.assign = FALSE)
+colnames(data) <- c('open','high','low','close','volume','adjusted')
+# data <- zoo(data, order.by = index(data), frequency = 52)
+
 plot(zoo(data), plot.type = 'multiple',col = c('black','blue','green','yellow','orange','purple'))
-
-data <- zoo(data, order.by = index(data), frequency = 52)
 
 data$month <- month(as.POSIXlt(index(data), format="%d/%m/%Y"))
 data$year <- year(as.POSIXlt(index(data), format = "%d/%m/%Y"))
 
-myarrow=arrow(angle = 15, ends = "both", type = "closed")
-ggplot(data = data, aes(x = index(data),))+
-    geom_line(aes(y = data$BTC.USD.Open, color = 'green'))+
-    geom_line(aes(y = data$BTC.USD.Close, color = 'yellow'))
+ggplot(data = data, aes(x = index(data)))+
+    geom_line(aes(y = data$open), colour = 'black')+
+    geom_line(aes(y = data$close), colour = 'red')
 
-# ggplot(data = data, aes(x = data$year)+
-#     geom_line()
-ggplot(data = data, aes(x = index(data),))+
-    geom_line(aes(y = data$BTC.USD.High, color = 'green'))+
-    geom_line(aes(y = data$BTC.USD.Low, color = 'yellow'))
+ggplot(data = data, aes(x = index(data)))+
+    geom_line(aes(y = data$high, color = 'green'))+
+    geom_line(aes(y = data$low, color = 'yellow'))
 
 btc.2017 <- data[data$year == 2017]
 btc.2018 <- data[data$year == 2018]
@@ -42,15 +44,15 @@ btc.2020 <- data[data$year == 2020]
 btc.2020 <- btc.2020[!(format(index(btc.2020), format = "%m") =="02" &
              format(index(btc.2020), format = "%d")=="29"),]
 btc.2021 <- data[data$year == 2021]
-btc.2021 <- data[data$year == 2021]
 btc.2022 <- data[data$year == 2022]
 
+
 ggplot(data = btc.2017, aes(x = as.POSIXct(index(btc.2017), format="%d/%m/%Y")))+
-    geom_line(aes(y = btc.2017$BTC.USD.Open, colour = '2017'))+
-    geom_line(aes(y = btc.2018$BTC.USD.Open, colour = '2018'))+
-    geom_line(aes(y = btc.2019$BTC.USD.Open, colour = '2019'))+
-    geom_line(aes(y = btc.2020$BTC.USD.Open, colour = '2020'))+
-    geom_line(aes(y = btc.2021$BTC.USD.Open, colour = "2021"))+
+    geom_line(aes(y = btc.2017$open, colour = '2017'))+
+    geom_line(aes(y = btc.2018$open, colour = '2018'))+
+    geom_line(aes(y = btc.2019$open, colour = '2019'))+
+    geom_line(aes(y = btc.2020$open, colour = '2020'))+
+    geom_line(aes(y = btc.2021$open, colour = "2021"))+
     # geom_line(aes(y = btc.2022$BTC.USD.Open, colour = "2022"))
     scale_colour_manual(name = "year", aesthetics = "colour",values = c("2017" = "darkblue", "2018" = "red", '2019' = 'orange', "2020" = 'purple', "2021" = 'green', "2022" = 'pink'))+
     scale_x_datetime(date_labels = "%b")+
@@ -60,7 +62,7 @@ ggplot(data = btc.2017, aes(x = as.POSIXct(index(btc.2017), format="%d/%m/%Y")))
 
 covid.period <- data['20200130/20220505']
 ggplot(data = covid.period, aes(x = as.POSIXct(index(covid.period), format="%d/%m/%Y")))+
-    geom_line(aes(y = covid.period$BTC.USD.Open, colour = 'covid'))+
+    geom_line(aes(y = covid.period$open, colour = 'covid'))+
 scale_colour_manual(name = "year", aesthetics = "colour",values = c("covid" = "red"))+
     scale_x_datetime(date_labels = "%b", date_breaks = "2 month")+
     xlab('Month of year')+
@@ -68,35 +70,93 @@ scale_colour_manual(name = "year", aesthetics = "colour",values = c("covid" = "r
 theme_minimal()
 
 #Inprogress....
-components.ts <- decompose(data)
-plot(components.ts)
+# components.ts <- decompose(data)
+# plot(components.ts)
 # -------------------------------------------------
 
 #Auto Correlation Model....
-model <- lm(`BTC-USD.Adjusted` ~ ., data =data)
+model <- lm(open ~ ., data =data)
 acf(model$residuals,plot = TRUE, type = 'correlation');
 pacf(model$residuals, pl = TRUE)
 
-model <- lm(`BTC-USD.High` ~ ., data =data)
+model <- lm(high ~ ., data =data)
 acf(model$residuals,plot = TRUE, type = 'correlation');
 pacf(model$residuals, pl = TRUE)
+#ARMA Model...
 
-model <- lm(`BTC-USD.Low` ~ ., data =data)
+model <- lm(low ~ ., data =data)
 acf(model$residuals,plot = TRUE, type = 'correlation');
 pacf(model$residuals, pl = TRUE)
+#ARMA Model...
 
-model <- lm(`BTC-USD.Open` ~ ., data =data)
+model <- lm(open ~ ., data =data)
 acf(model$residuals,plot = TRUE, type = 'correlation');
 pacf(model$residuals, pl = TRUE)
+#AR or ARMA Model...
 
-model <- lm(`BTC-USD.Close` ~ ., data =data)
+model <- lm(close ~ ., data =data)
 acf(model$residuals,plot = TRUE, type = 'correlation');
 pacf(model$residuals, pl = TRUE)
+#MA Model...
 
-model <- lm(`BTC-USD.Volume` ~ ., data =data)
+model <- lm(volume ~ ., data =data)
 acf(model$residuals,plot = TRUE, type = 'correlation');
 pacf(model$residuals, pl = TRUE)
+#MA or ARMA...
 
 #Analysis...
+data.before.2022 <- data[data$year < 2022]
+
+# Box.test(model$residuals, lag = 30, type=  'Ljung-Box')
+
+# hist(model$residuals, col = 'red', xlab = 'Error', freq = FALSE)
+# lines(density(model$residuals))
 
 
+# library(ggplot2)
+# ggplot2::autoplot(forecast_data)
+
+
+
+analysis <- function(data){
+    #Main arima model...this will find optimal value for p,d,q...
+    auto.model <- auto.arima(data, seasonal = FALSE)
+    print(auto.model)
+    auto.forecast <- forecast(auto.model, 100) 
+    # AR(1) model...
+    ar.model <- arima(data, order = c(1,0,0))
+    ar.forecast <- forecast(ar.model , 100)
+    # MA(1) model...
+    ma.model <- arima(data, order = c(0,0,1))
+    ma.forecast <- forecast(ar.model , 100)
+    # Printing accuracies...consider MAPE value 100-MAPE '%' will be the accuracy of model..
+    print('auto.forecast Accuracy: ')
+    print(accuracy(auto.forecast))
+    print('ar.forecast Accuracy: ')
+    print(accuracy(ar.forecast))
+    print('ma.forecast Accuracy: ')
+    print(accuracy(ma.forecast))
+
+    #Plotting fit and forecast....
+    #All red coloured lines are arima model lines...
+    # Primariy considering arima model..
+    # The straight line at the end of time series graph is the mean value provided by arima model
+    # And it's the forecasted value provided to us....
+    ts.plot(data)
+    points(auto.model$fitted, type = 'l', col = 2, lty = 2)
+    points(auto.forecast$lower, type = "l", col = 2, lty = 2)
+    points(auto.forecast$upper, type = "l", col = 2, lty = 2)
+    points(ar.model$residuals, type = 'l', col = 3, lty = 2)
+    points(ma.model$residuals, type = 'l', col = 4, lty = 2)
+    points(auto.model$residuals, type= 'l', col=2, lty = 2)
+    points(auto.forecast$mean, type = 'l', col = 2, lty = 2)
+    points(ar.forecast$mean, type = 'l', col = 5, lty = 2)
+    points(ma.forecast$mean, type = 'l', col = 6, lty = 2)
+    #acf and pacf plots for auto.model...for evaluation purposes...
+    acf(auto.model$residuals, main = 'Correlogram')
+    pacf(auto.model$residuals, main = 'partial correlogram')
+    #Can also consider AIC and BIC values for model evaluation purposes also...
+}
+
+# Won't work properly for volume...as volume value is big in number...
+analysis(data$adjusted)
