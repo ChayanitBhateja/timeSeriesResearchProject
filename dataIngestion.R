@@ -160,3 +160,49 @@ analysis <- function(data){
 
 # Won't work properly for volume...as volume value is big in number...
 analysis(data$adjusted)
+
+run.prophet.pipeline <- function(dataSeries){
+    #Creating Prophet Dataset...
+    print('creating Dataset..')
+    dateData <- index(dataSeries)
+    openData <- dataSeries
+    
+    prophet.dataset <- data.frame(dateData, openData)
+    
+    colnames(prophet.dataset) <- c('ds','y')
+    
+    row.names(prophet.dataset) <- seq(1:nrow(prophet.dataset))
+    
+    #Creating Prophet Model...
+    print('Creating Prophet Model...')
+    prophet.model <- prophet(prophet.dataset)
+    #adding 365 days more to date in prophet model...
+    future <- make_future_dataframe(prophet.model, periods = 365)
+    #Forecasting...
+    print('Forecasting...')
+    forecast <- predict(prophet.model, future)
+    
+    #Plotting...
+    print('Plotting...')
+    plot(prophet.model, forecast)
+    
+    prophet_plot_components(prophet.model, forecast)
+    print('Plotting Done...')
+    #evaluating Model...
+    print('Model Evaluation...')
+    pred <- forecast$yhat[1:2954]
+    
+    actual <- prophet.model$history$y
+    
+    plot(actual, pred)
+    abline(lm(pred~actual), col = 'red')
+    print(summary(lm(pred~actual)))
+    
+    cs<-cross_validation(prophet.model, 365, units = 'days')
+    print(performance_metrics(cs, rolling_window = 0.1))
+    
+    plot_cross_validation_metric(cs, metric = 'rmse', rolling_window = 0.1)
+    print('done...')
+}
+
+run.prophet.pipeline(data$high)
