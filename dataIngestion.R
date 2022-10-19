@@ -5,7 +5,7 @@
 # install.packages('Zoo')
 # install.packages('statsmodels')
 # install.packages('forecast')
-install.packages('prophet')
+# install.packages('prophet')
 library(zoo)
 library(ggplot2)
 library(pdfetch)
@@ -17,7 +17,8 @@ library(stats)
 library(xts)
 library(forecast)
 library(prophet)
-
+library(e1071)
+library(MLmetrics)
 
 data <- getSymbols('BTC-USD', src = 'yahoo',auto.assign = FALSE)
 colnames(data) <- c('open','high','low','close','volume','adjusted')
@@ -206,3 +207,19 @@ run.prophet.pipeline <- function(dataSeries){
 }
 
 run.prophet.pipeline(data$high)
+
+svm.model <- svm(data$high~index(data), type = 'eps-regression', kernel = 'radial', cost = 0.1, gamma = 1000)
+
+nd <- 1:3200
+
+
+predictions <- predict(svm.model, data = data.frame(x=nd))
+
+ylim <- c(min(data$high), max(data$open))
+xlim <- c(min(nd),max(nd))
+plot(data$high, col="blue", ylim=ylim, xlim=xlim, type="l")
+par(new=TRUE)
+plot(predictions, col="red", ylim=ylim, xlim=xlim)
+
+RMSE(predictions, data$high)
+
