@@ -6,6 +6,10 @@
 # install.packages('statsmodels')
 # install.packages('forecast')
 # install.packages('prophet')
+# install.packages('keras')
+# tensorflow::install_tensorflow()
+# install.packages('rugarch')
+# install.packages('PerformanceAnalytics')
 library(zoo)
 library(ggplot2)
 library(pdfetch)
@@ -19,10 +23,34 @@ library(forecast)
 library(prophet)
 library(e1071)
 library(MLmetrics)
+library(keras)
+library(rugarch)
+library(PerformanceAnalytics)
 
 data <- getSymbols('BTC-USD', src = 'yahoo',auto.assign = FALSE)
 colnames(data) <- c('open','high','low','close','volume','adjusted')
 # data <- zoo(data, order.by = index(data), frequency = 52)
+
+#Chart series in candleStick format data on the month of COVID
+chartSeries(data["2020-03"])
+
+#Chart series data line graph
+chartSeries(data)
+
+returns <- CalculateReturns(data$close)
+returns<- returns[-1]
+
+hist(returns)
+
+chart.Histogram(returns, methods = c('add.density', 'add.normal'),
+                colorset = c('blue','green','red'))
+
+chartSeries(returns, theme = 'white')
+
+#Annual Volatility
+sd(returns, na.rm = TRUE)
+sqrt(252)*sd(returns['2018'])
+chart.RollingPerformance(R = returns['2014::2022'], width = 22, FUN ='sd.annualized', scale = 365, main = 'YearlyRolling Volatility')
 
 plot(zoo(data), plot.type = 'multiple',col = c('black','blue','green','yellow','orange','purple'))
 
@@ -222,4 +250,92 @@ par(new=TRUE)
 plot(predictions, col="red", ylim=ylim, xlim=xlim)
 
 RMSE(predictions, data$high)
+
+
+#Inprogress....................
+#RNN Model...
+
+# model <- keras_model_sequential()
+# 
+# model %>%
+#     layer_embedding(input_dim = 500, output_dim = 32) %>%
+#     layer_simple_rnn(units = 32) %>%
+#     layer_dense(units = 1, activation = 'sigmoid')
+# 
+# model %>% compile(optimizer = 'rmsprop',
+#                   loss = 'binary_crossentropy',
+#                   metrics = c('acc'))
+# 
+history <- model %>% fit()
+#-----------------------------------
+
+#GARCH Model..
+run.garch.model <- function(){}
+sgarch <- ugarchspec(mean.model = list(armaOrder = c(0,0)),
+                         variance.model = list(model = 'sGARCH'),
+                         distribution.model = 'norm')
+
+sgarch.model <- ugarchfit(data = returns, spec = sgarch)
+
+print(sgarch.model)
+
+plot(sgarch.model)
+
+v<- sqrt(365)*sigma(sgarch.model)
+w<- 0.1/v
+plot(merge(v,w),
+     multi.panel = T)
+
+
+forecast.ugarch <- ugarchforecast(fitORspec = sgarch.model, n.ahead = 30)
+#fitted values of constant mean model..
+plot(fitted(forecast.ugarch))
+#plotting variability....
+plot(sigma(forecast.ugarch))
+
+#Skewed student T distribution...
+sgarch.sstd <- ugarchspec(mean.model = list(armaOrder = c(0,0)),
+                     variance.model = list(model = 'sGARCH'),
+                     distribution.model = 'sstd')
+
+sgarch.model.sstd <- ugarchfit(data = returns, spec = sgarch.sstd)
+print(sgarch.model.sstd)
+# we cannot reject the null hypothesis and state that this model is good for residuals...
+
+
+plot(sgarch.model.sstd)
+
+sgarch.gjr <- ugarchspec(mean.model = list(armaOrder = c(0,0)),
+                          variance.model = list(model = 'gjrGARCH'),
+                          distribution.model = 'sstd')
+
+sgarch.model.gjr <- ugarchfit(data = returns, spec = sgarch.gjr)
+print(sgarch.model.gjr)
+plot(sgarch.model.gjr, which = 'all')
+#better than previous model...skew and shape...must be lower...
+
+#Simulation...
+sfinal <- sgarch.gjr
+setfixed(sfinal) <- as.list(coef(sgarch.model.gjr))
+# fixedCoef <- as.list(coef(sgarch.model.gjr))
+f2018<- ugarchforecast(data = returns['/2018-12'],
+                       fitORspec = sfinal,
+                       n.ahead = 365)
+f2022 <- ugarchforecast(data = returns['/2022-09'],
+                        fitORspec = sfinal,
+                        n.ahead = 100)
+par(mfrow = c(2,1))
+plot(sigma(f2018), main='volatility')
+plot(sigma(f2022))
+
+sim <- ugarchpath(spec = sfinal,
+                  m.sim = 3,
+                  n.sim = 1*100,
+                  rseed = 123)
+plot.zoo(fitted(sim))
+plot.zoo(sigma(sim))
+par(mfrow = c(1,1))
+tail(data)
+p <- 19153.87*apply(fitted(sim),2,'cumsum')+19153.87
+matplot(p, type = 'l', lwd = 3)
 
