@@ -26,6 +26,7 @@ library(MLmetrics)
 library(keras)
 library(rugarch)
 library(PerformanceAnalytics)
+library(tseries)
 
 data <- getSymbols('BTC-USD', src = 'yahoo',auto.assign = FALSE)
 colnames(data) <- c('open','high','low','close','volume','adjusted')
@@ -147,16 +148,32 @@ data.before.2022 <- data[data$year < 2022]
 
 
 
-analysis <- function(data){
+analysis <- function(dataSeries){
+    month <- month(index(dataSeries))[length(dataSeries)]
+    day <- day(index(dataSeries))[length(dataSeries)]
+    year <- year(index(dataSeries)[length(dataSeries)])
+    closedata <- ts(dataSeries, c('2014','09','17'), c(as.character(year),as.character(month),as.character(day)),365)
+    dataSeries <- closedata
+    adf.test(dataSeries)
     #Main arima model...this will find optimal value for p,d,q...
-    auto.model <- auto.arima(data, seasonal = FALSE)
+    auto.model <- auto.arima(closedata, ic = 'aic', trace = TRUE, D=1)
     print(auto.model)
-    auto.forecast <- forecast(auto.model, 100) 
+    print('Forecasting for 1 day...')
+    auto.forecast <- forecast(auto.model, level = c(95), h = 1)
+    print(auto.forecast)
+    print('Forecasting for 90 Days...')
+    auto.forecast <- forecast(auto.model, level = c(95), h = 90) 
+    print(auto.forecast)
+    autoplot(auto.forecast, main = 'Forecast for 90 Days using ARIMA')
+    print('Forecasting for 180 Days...')
+    auto.forecast <- forecast(auto.model, level = c(95), h = 180) 
+    print(auto.forecast)
+    autoplot(auto.forecast, main = 'Forecast for 180 days using ARIMA')
     # AR(1) model...
-    ar.model <- arima(data, order = c(1,0,0))
+    ar.model <- arima(dataSeries, order = c(1,0,0))
     ar.forecast <- forecast(ar.model , 100)
     # MA(1) model...
-    ma.model <- arima(data, order = c(0,0,1))
+    ma.model <- arima(dataSeries, order = c(0,0,1))
     ma.forecast <- forecast(ar.model , 100)
     # Printing accuracies...consider MAPE value 100-MAPE '%' will be the accuracy of model..
     print('auto.forecast Accuracy: ')
@@ -171,7 +188,7 @@ analysis <- function(data){
     # Primariy considering arima model..
     # The straight line at the end of time series graph is the mean value provided by arima model
     # And it's the forecasted value provided to us....
-    ts.plot(data)
+    ts.plot(dataSeries)
     points(auto.model$fitted, type = 'l', col = 2, lty = 2)
     points(auto.forecast$lower, type = "l", col = 2, lty = 2)
     points(auto.forecast$upper, type = "l", col = 2, lty = 2)
@@ -188,10 +205,11 @@ analysis <- function(data){
 }
 
 # Won't work properly for volume...as volume value is big in number...
-analysis(data$adjusted)
+analysis(data$close)
 
 run.prophet.pipeline <- function(dataSeries){
     #Creating Prophet Dataset...
+    dataSeries <- data$close
     print('creating Dataset..')
     dateData <- index(dataSeries)
     openData <- dataSeries
@@ -206,12 +224,29 @@ run.prophet.pipeline <- function(dataSeries){
     print('Creating Prophet Model...')
     prophet.model <- prophet(prophet.dataset)
     #adding 365 days more to date in prophet model...
-    future <- make_future_dataframe(prophet.model, periods = 365)
+    anotherDayFuture <- make_future_dataframe(prophet.model, periods = 1)
+    futureInQuarter <- make_future_dataframe(prophet.model, periods = 90)
+    HalfFuture <- make_future_dataframe(prophet.model, periods = 180)
     #Forecasting...
     print('Forecasting...')
-    forecast <- predict(prophet.model, future)
+    forecast <- predict(prophet.model, anotherDayFuture)
     
     #Plotting...
+    print(forecast$yhat[length(forecast$yhat)])
+    print('Plotting...')
+    plot(prophet.model, forecast)
+    
+    forecast <- predict(prophet.model, futureInQuarter)
+    
+    #Plotting...
+    print(forecast$yhat[length(forecast$yhat)])
+    print('Plotting...')
+    plot(prophet.model, forecast)
+    
+    forecast <- predict(prophet.model, HalfFuture)
+    
+    #Plotting...
+    print(forecast$yhat[length(forecast$yhat)])
     print('Plotting...')
     plot(prophet.model, forecast)
     
@@ -219,14 +254,12 @@ run.prophet.pipeline <- function(dataSeries){
     print('Plotting Done...')
     #evaluating Model...
     print('Model Evaluation...')
-    pred <- forecast$yhat[1:2954]
-    
+    pred <- forecast$yhat[1:length(dataSeries)]
     actual <- prophet.model$history$y
-    
     plot(actual, pred)
     abline(lm(pred~actual), col = 'red')
     print(summary(lm(pred~actual)))
-    
+    print('Cross Validation...')
     cs<-cross_validation(prophet.model, 365, units = 'days')
     print(performance_metrics(cs, rolling_window = 0.1))
     
@@ -234,23 +267,59 @@ run.prophet.pipeline <- function(dataSeries){
     print('done...')
 }
 
-run.prophet.pipeline(data$high)
+run.prophet.pipeline(data$close)
 
-svm.model <- svm(data$high~index(data), type = 'eps-regression', kernel = 'radial', cost = 0.1, gamma = 1000)
+run.svm.model <- function(dataSeries){
+    dataSeries <- data$close
+    svm.model <- svm(dataSeries~index(data), type = 'eps-regression', kernel = 'radial', cost = 0.1, gamma = 1000)
+    
+    one.nd <- 1:length(dataSeries)+1
+    quarter.nd <- 1:length(dataSeries)+90
+    half.year.nd <- 1:length(dataSeries)+180
+    
+    print('one day forecast..')
+    predictions <- predict(svm.model, data = data.frame(x=one.nd))
+    print(predictions[length(predictions)])
+    ylim <- c(min(dataSeries), max(dataSeries))
+    xlim <- c(min(one.nd),max(one.nd))
+    plot(data, col="blue", ylim=ylim, xlim=xlim, type="l")
+    par(new=TRUE)
+    plot(predictions, col="red", ylim=ylim, xlim=xlim, main = 'One Day Forecast (Red forecast Line)')
+    
+    print('quarter year forecast.')
+    predictions <- predict(svm.model, data = data.frame(x=quarter.nd))
+    print(predictions[length(predictions)-90:length(predictions)])
+    ylim <- c(min(dataSeries), max(dataSeries))
+    xlim <- c(min(one.nd),max(one.nd))
+    plot(data, col="blue", ylim=ylim, xlim=xlim, type="l")
+    par(new=TRUE)
+    plot(predictions, col="red", ylim=ylim, xlim=xlim, main = 'quarter Year Forecast (Red forecast Line)')
+    
+    print('half yearly forecast.')
+    predictions <- predict(svm.model, data = data.frame(x=half.year.nd))
+    print(predictions[length(predictions)-180:length(predictions)])
+    ylim <- c(min(dataSeries), max(dataSeries))
+    xlim <- c(min(one.nd),max(one.nd))
+    plot(data, col="blue", ylim=ylim, xlim=xlim, type="l")
+    par(new=TRUE)
+    plot(predictions, col="red", ylim=ylim, xlim=xlim, main = 'Half Year Forecast (Red forecast Line)')
+    
+    RMSE(predictions, dataSeries)
+}
 
-nd <- 1:3200
+run.svm.model(data$close)
 
-
-predictions <- predict(svm.model, data = data.frame(x=nd))
-
-ylim <- c(min(data$high), max(data$open))
-xlim <- c(min(nd),max(nd))
-plot(data$high, col="blue", ylim=ylim, xlim=xlim, type="l")
-par(new=TRUE)
-plot(predictions, col="red", ylim=ylim, xlim=xlim)
-
-RMSE(predictions, data$high)
-
+# devtools::install_github("berndbischl/ParamHelpers") # version >= 1.11 needed.
+#install mlr, lhs, hashids, ParamHelpers first...using install.packages...
+# devtools::install_github("jakob-r/mlrHyperopt", dependencies = FALSE)
+# library(ParamHelpers)
+# 
+# library(mlrHyperopt)
+# res = hyperopt(data, learner = "classif.svm")
+# res
+# Tune result:
+# Op. pars: cost=1.21e+04; gamma=0.000239
+# mmce.test.mean=0.0266667
 
 #Inprogress....................
 #RNN Model...
@@ -266,11 +335,10 @@ RMSE(predictions, data$high)
 #                   loss = 'binary_crossentropy',
 #                   metrics = c('acc'))
 # 
-history <- model %>% fit()
+# history <- model %>% fit()
 #-----------------------------------
 
 #GARCH Model..
-run.garch.model <- function(){}
 sgarch <- ugarchspec(mean.model = list(armaOrder = c(0,0)),
                          variance.model = list(model = 'sGARCH'),
                          distribution.model = 'norm')
@@ -287,7 +355,7 @@ plot(merge(v,w),
      multi.panel = T)
 
 
-forecast.ugarch <- ugarchforecast(fitORspec = sgarch.model, n.ahead = 30)
+forecast.ugarch <- ugarchforecast(fitORspec = sgarch.model, n.ahead = 90)
 #fitted values of constant mean model..
 plot(fitted(forecast.ugarch))
 #plotting variability....
