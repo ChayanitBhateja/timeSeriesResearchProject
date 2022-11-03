@@ -28,6 +28,7 @@ library(rugarch)
 library(PerformanceAnalytics)
 library(tseries)
 
+#Loading data from yahoo finance...
 data <- getSymbols('BTC-USD', src = 'yahoo',auto.assign = FALSE)
 colnames(data) <- c('open','high','low','close','volume','adjusted')
 # data <- zoo(data, order.by = index(data), frequency = 52)
@@ -38,9 +39,10 @@ chartSeries(data["2020-03"])
 #Chart series data line graph
 chartSeries(data)
 
+#Calculating returns for further usage....
 returns <- CalculateReturns(data$close)
 returns<- returns[-1]
-
+#Distribution of returns.
 hist(returns)
 
 chart.Histogram(returns, methods = c('add.density', 'add.normal'),
@@ -49,19 +51,21 @@ chart.Histogram(returns, methods = c('add.density', 'add.normal'),
 chartSeries(returns, theme = 'white')
 
 #Annual Volatility
+#THis is the formula to calculate volatility...
 sd(returns, na.rm = TRUE)
 sqrt(252)*sd(returns['2018'])
+
 chart.RollingPerformance(R = returns['2014::2022'], width = 22, FUN ='sd.annualized', scale = 365, main = 'YearlyRolling Volatility')
 
 plot(zoo(data), plot.type = 'multiple',col = c('black','blue','green','yellow','orange','purple'))
 
 data$month <- month(as.POSIXlt(index(data), format="%d/%m/%Y"))
 data$year <- year(as.POSIXlt(index(data), format = "%d/%m/%Y"))
-
+#Comparison between daily open and close....
 ggplot(data = data, aes(x = index(data)))+
     geom_line(aes(y = data$open), colour = 'black')+
     geom_line(aes(y = data$close), colour = 'red')
-
+#Comparison between daily high and low....
 ggplot(data = data, aes(x = index(data)))+
     geom_line(aes(y = data$high, color = 'green'))+
     geom_line(aes(y = data$low, color = 'yellow'))
@@ -76,7 +80,7 @@ btc.2020 <- btc.2020[!(format(index(btc.2020), format = "%m") =="02" &
 btc.2021 <- data[data$year == 2021]
 btc.2022 <- data[data$year == 2022]
 
-
+#Yearly line graph for open values...
 ggplot(data = btc.2017, aes(x = as.POSIXct(index(btc.2017), format="%d/%m/%Y")))+
     geom_line(aes(y = btc.2017$open, colour = '2017'))+
     geom_line(aes(y = btc.2018$open, colour = '2018'))+
@@ -90,12 +94,13 @@ ggplot(data = btc.2017, aes(x = as.POSIXct(index(btc.2017), format="%d/%m/%Y")))
     ylab('BTC-USD Open Price')+
     theme_minimal()
 
+#Analysis of covid from 30 JAN 2020 to 5 MAR 2022 
 covid.period <- data['20200130/20220505']
 ggplot(data = covid.period, aes(x = as.POSIXct(index(covid.period), format="%d/%m/%Y")))+
     geom_line(aes(y = covid.period$open, colour = 'covid'))+
 scale_colour_manual(name = "year", aesthetics = "colour",values = c("covid" = "red"))+
     scale_x_datetime(date_labels = "%b", date_breaks = "2 month")+
-    xlab('Month of year')+
+    xlab('Month of year 2020 - 2022')+
     ylab('BTC-USD Open Price')+
 theme_minimal()
 
@@ -105,6 +110,9 @@ theme_minimal()
 # -------------------------------------------------
 
 #Auto Correlation Model....
+#On the basis of combination of ACF and PACF we will determine if 
+# AR, MA, ARMA, or ARIMA model will be used. 
+# 2 things to consider..the breakeven point and tail. Which chart is having tail or which chart is having breakeven point determines what model will be used...
 model <- lm(open ~ ., data =data)
 acf(model$residuals,plot = TRUE, type = 'correlation');
 pacf(model$residuals, pl = TRUE)
@@ -147,13 +155,15 @@ data.before.2022 <- data[data$year < 2022]
 # ggplot2::autoplot(forecast_data)
 
 
-
+#Using ARIMA model and comparing it with AR, MA model..
+#Using auto.arima it will automatically choose the optimal values of p,d,q based on lowered error metric. 
 analysis <- function(dataSeries){
     month <- month(index(dataSeries))[length(dataSeries)]
     day <- day(index(dataSeries))[length(dataSeries)]
     year <- year(index(dataSeries)[length(dataSeries)])
     closedata <- ts(dataSeries, c('2014','09','17'), c(as.character(year),as.character(month),as.character(day)),365)
     dataSeries <- closedata
+    #Stationary Test...arima model wont test stationary on its own.
     adf.test(dataSeries)
     #Main arima model...this will find optimal value for p,d,q...
     auto.model <- auto.arima(closedata, ic = 'aic', trace = TRUE, D=1)
@@ -207,6 +217,8 @@ analysis <- function(dataSeries){
 # Won't work properly for volume...as volume value is big in number...
 analysis(data$close)
 
+#Prophet is one of the most popular time series model developed by Facebook(META)
+#Requires dataset in format ds and y ds = datetime y = the column to evaluate...
 run.prophet.pipeline <- function(dataSeries){
     #Creating Prophet Dataset...
     dataSeries <- data$close
@@ -269,6 +281,9 @@ run.prophet.pipeline <- function(dataSeries){
 
 run.prophet.pipeline(data$close)
 
+
+#Support Vector Machine is one of the ML model which works good on Time series model along with Supervised Problems...
+# We are using regression algorithm with radial kernel...
 run.svm.model <- function(dataSeries){
     dataSeries <- data$close
     svm.model <- svm(dataSeries~index(data), type = 'eps-regression', kernel = 'radial', cost = 0.1, gamma = 1000)
@@ -339,6 +354,13 @@ run.svm.model(data$close)
 #-----------------------------------
 
 #GARCH Model..
+#Generalized AutoRegressive Conditional Heteroskedasticity (GARCH) is a statistical model used in #analyzing time-series data where the variance error is believed to be serially autocorrelated. GARCH #models assume that the variance of the error term follows an autoregressive moving average process.
+#Another Time series model..
+# It works on majorly 3 paramters...mean, variance and distribution type...
+# Helps in predicting by keeping in mind the volatility of market...
+# https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0245904#:~:text=We%20use%20seven%20GARCH%2Dtype,selected%20crypto%20and%20world%20currencies.
+
+#If Executing the code check the p value/significance metric...
 sgarch <- ugarchspec(mean.model = list(armaOrder = c(0,0)),
                          variance.model = list(model = 'sGARCH'),
                          distribution.model = 'norm')
