@@ -429,3 +429,32 @@ tail(data)
 p <- 19153.87*apply(fitted(sim),2,'cumsum')+19153.87
 matplot(p, type = 'l', lwd = 3)
 
+#--------------------------------------------------------------
+#Question/Answers:
+#Answer1: Yes Indeed. We can see in our analysis our models are having accuracy of 96-98%. Also we are using 95% confidence interval which means we can be 95% confident on the predictions the Models will make.
+
+#Answer2: Yes, We can observe this in charts of ARIMA model that if we are predicting for longer..then horizon of 95% confidence interval will also increase we can see greater HIGH and LOW of Prediction INTERVAL due to increase in time. More TIME More Chances of getting uncertainity so YES.
+
+#Answer3: Yes Indeed, Model Machine Learning Models like GARCH take Volatility of market into consideration which traditional Model dont consider...Also models like Prophet backed by Big Company like Meta...Which is based on Additive model which take into consideration things like non-linear trends fit with yearly, monthly, daily seasonality. It also take into consideration the effect of holidays.
+
+#Answer4: It Depends on the model, the Nature of model, amount of data, seasonality and Volatility of market. to have One common model for all...might be tough call but to say in our scenario we can consider ARIMA or GARCH model because GARCH Model is effective on Volatile market data like Cryto Market. And ARIMA is a model which takes into consideration the Moving Average of Data and ACF and PACF as major points.
+
+#Answer5: Macro Economics directly or indirectly affect the sentiments of Crypto Market. Some Big Events like Involvement of Elon Musk into Crypto Market...COVID-19 and RUSSIA-UKRAINE WAR put direct effect on Crypto Prices...Talking about Covid here...in early phases we see that there was a sudden drop in crypto prices during first lock down...as lockdown pushed off...we can see big surge in crypto prices...during early 2021 and during 2021 when 2nd wave hit. People leaned towards regualting and trading crypto on daily basis leads to high demand and prices of crypto currencies. And during late 2021 and early 2022 we can see drop in crypto prices as several nation's govt imposed crypto ban or strict laws on circulating crypto currency which lead to downfall during jan 2022. 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
