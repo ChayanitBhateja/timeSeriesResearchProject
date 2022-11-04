@@ -57,7 +57,7 @@ sqrt(252)*sd(returns['2018'])
 
 chart.RollingPerformance(R = returns['2014::2022'], width = 22, FUN ='sd.annualized', scale = 365, main = 'YearlyRolling Volatility')
 
-plot(zoo(data), plot.type = 'multiple',col = c('black','blue','green','yellow','orange','purple'))
+plot(zoo(data), plot.type = 'multiple',col = c('black','blue','green','yellow','orange','purple'), main = "Every column Trend in dataset")
 
 data$month <- month(as.POSIXlt(index(data), format="%d/%m/%Y"))
 data$year <- year(as.POSIXlt(index(data), format = "%d/%m/%Y"))
@@ -297,7 +297,7 @@ run.svm.model <- function(dataSeries){
     print(predictions[length(predictions)])
     ylim <- c(min(dataSeries), max(dataSeries))
     xlim <- c(min(one.nd),max(one.nd))
-    plot(data, col="blue", ylim=ylim, xlim=xlim, type="l")
+    plot(dataSeries, col="blue", ylim=ylim, xlim=xlim, type="l")
     par(new=TRUE)
     plot(predictions, col="red", ylim=ylim, xlim=xlim, main = 'One Day Forecast (Red forecast Line)')
     
@@ -306,7 +306,7 @@ run.svm.model <- function(dataSeries){
     print(predictions[length(predictions)-90:length(predictions)])
     ylim <- c(min(dataSeries), max(dataSeries))
     xlim <- c(min(one.nd),max(one.nd))
-    plot(data, col="blue", ylim=ylim, xlim=xlim, type="l")
+    plot(dataSeries, col="blue", ylim=ylim, xlim=xlim, type="l")
     par(new=TRUE)
     plot(predictions, col="red", ylim=ylim, xlim=xlim, main = 'quarter Year Forecast (Red forecast Line)')
     
@@ -315,7 +315,7 @@ run.svm.model <- function(dataSeries){
     print(predictions[length(predictions)-180:length(predictions)])
     ylim <- c(min(dataSeries), max(dataSeries))
     xlim <- c(min(one.nd),max(one.nd))
-    plot(data, col="blue", ylim=ylim, xlim=xlim, type="l")
+    plot(dataSeries, col="blue", ylim=ylim, xlim=xlim, type="l")
     par(new=TRUE)
     plot(predictions, col="red", ylim=ylim, xlim=xlim, main = 'Half Year Forecast (Red forecast Line)')
     
