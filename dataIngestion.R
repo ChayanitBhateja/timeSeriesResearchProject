@@ -29,9 +29,14 @@ library(PerformanceAnalytics)
 library(tseries)
 
 #Loading data from yahoo finance...
-data <- getSymbols('BTC-USD', src = 'yahoo',auto.assign = FALSE)
-colnames(data) <- c('open','high','low','close','volume','adjusted')
-# data <- zoo(data, order.by = index(data), frequency = 52)
+#BTC-USD, ETH-USD, BSB-USD
+get.crypto.data <- function(symbol){
+    data <- getSymbols(symbol, src = 'yahoo',auto.assign = FALSE)
+    colnames(data) <- c('open','high','low','close','volume','adjusted')
+    return(data)
+}
+
+data <- get.crypto.data('BTC-USD')
 
 #Chart series in candleStick format data on the month of COVID
 chartSeries(data["2020-03"])
@@ -43,11 +48,9 @@ chartSeries(data)
 returns <- CalculateReturns(data$close)
 returns<- returns[-1]
 #Distribution of returns.
-hist(returns)
-
 chart.Histogram(returns, methods = c('add.density', 'add.normal'),
                 colorset = c('blue','green','red'))
-
+# Checking outliers/white noise in returns...
 chartSeries(returns, theme = 'white')
 
 #Annual Volatility
@@ -157,11 +160,14 @@ data.before.2022 <- data[data$year < 2022]
 
 #Using ARIMA model and comparing it with AR, MA model..
 #Using auto.arima it will automatically choose the optimal values of p,d,q based on lowered error metric. 
-analysis <- function(dataSeries){
+run.arima.model <- function(dataSeries){
+    start.month <- month(index(dataSeries))[1]
     month <- month(index(dataSeries))[length(dataSeries)]
+    start.day <- day(index(dataSeries))[1]
     day <- day(index(dataSeries))[length(dataSeries)]
+    start.year <- year(index(dataSeries)[1])
     year <- year(index(dataSeries)[length(dataSeries)])
-    closedata <- ts(dataSeries, c('2014','09','17'), c(as.character(year),as.character(month),as.character(day)),365)
+    closedata <- ts(dataSeries, c(as.character(start.year),as.character(start.month),as.character(start.day)), c(as.character(year),as.character(month),as.character(day)),365)
     dataSeries <- closedata
     #Stationary Test...arima model wont test stationary on its own.
     adf.test(dataSeries)
@@ -215,7 +221,7 @@ analysis <- function(dataSeries){
 }
 
 # Won't work properly for volume...as volume value is big in number...
-analysis(data$close)
+run.arima.model(data$close)
 
 #Prophet is one of the most popular time series model developed by Facebook(META)
 #Requires dataset in format ds and y ds = datetime y = the column to evaluate...
@@ -285,7 +291,6 @@ run.prophet.pipeline(data$close)
 #Support Vector Machine is one of the ML model which works good on Time series model along with Supervised Problems...
 # We are using regression algorithm with radial kernel...
 run.svm.model <- function(dataSeries){
-    dataSeries <- data$close
     svm.model <- svm(dataSeries~index(data), type = 'eps-regression', kernel = 'radial', cost = 0.1, gamma = 1000)
     
     one.nd <- 1:length(dataSeries)+1
@@ -361,56 +366,93 @@ run.svm.model(data$close)
 # https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0245904#:~:text=We%20use%20seven%20GARCH%2Dtype,selected%20crypto%20and%20world%20currencies.
 
 #If Executing the code check the p value/significance metric...
-sgarch <- ugarchspec(mean.model = list(armaOrder = c(0,0)),
-                         variance.model = list(model = 'sGARCH'),
-                         distribution.model = 'norm')
+run.garch.model <- function(dataSeries){
+    returns <- CalculateReturns(dataSeries)
+    returns<- returns[-1]
+    #Distribution of returns.
+    chart.Histogram(returns, methods = c('add.density', 'add.normal'),
+                    colorset = c('blue','green','red'))
+    # Checking outliers/white noise in returns...
+    chartSeries(returns, theme = 'white')
+    sgarch <- ugarchspec(mean.model = list(armaOrder = c(0,0)),
+                             variance.model = list(model = 'sGARCH'),
+                             distribution.model = 'norm')
+    
+    sgarch.model <- ugarchfit(data = returns, spec = sgarch)
+    
+    print(sgarch.model)
+    
+    plot(sgarch.model)
+    
+    v<- sqrt(365)*sigma(sgarch.model)
+    w<- 0.1/v
+    plot(merge(v,w),
+         multi.panel = T)
+    
+    
+    forecast.ugarch <- ugarchforecast(fitORspec = sgarch.model, n.ahead = 90)
+    #fitted values of constant mean model..
+    plot(fitted(forecast.ugarch))
+    #plotting variability....
+    plot(sigma(forecast.ugarch))
+}
 
-sgarch.model <- ugarchfit(data = returns, spec = sgarch)
-
-print(sgarch.model)
-
-plot(sgarch.model)
-
-v<- sqrt(365)*sigma(sgarch.model)
-w<- 0.1/v
-plot(merge(v,w),
-     multi.panel = T)
-
-
-forecast.ugarch <- ugarchforecast(fitORspec = sgarch.model, n.ahead = 90)
-#fitted values of constant mean model..
-plot(fitted(forecast.ugarch))
-#plotting variability....
-plot(sigma(forecast.ugarch))
+run.garch.model(data$close)
 
 #Skewed student T distribution...
-sgarch.sstd <- ugarchspec(mean.model = list(armaOrder = c(0,0)),
-                     variance.model = list(model = 'sGARCH'),
-                     distribution.model = 'sstd')
+run.sstd.garch.model <- function(dataSeries){
+    returns <- CalculateReturns(dataSeries)
+    returns<- returns[-1]
+    #Distribution of returns.
+    chart.Histogram(returns, methods = c('add.density', 'add.normal'),
+                    colorset = c('blue','green','red'))
+    # Checking outliers/white noise in returns...
+    chartSeries(returns, theme = 'white')
+    sgarch.sstd <- ugarchspec(mean.model = list(armaOrder = c(0,0)),
+                         variance.model = list(model = 'sGARCH'),
+                         distribution.model = 'sstd')
+    
+    sgarch.model.sstd <- ugarchfit(data = returns, spec = sgarch.sstd)
+    print(sgarch.model.sstd)
+    # we cannot reject the null hypothesis and state that this model is good for residuals...
+    
+    
+    plot(sgarch.model.sstd)
+}
 
-sgarch.model.sstd <- ugarchfit(data = returns, spec = sgarch.sstd)
-print(sgarch.model.sstd)
-# we cannot reject the null hypothesis and state that this model is good for residuals...
+run.sstd.garch.model(data$close)
 
+run.gjr.garch.model <- function(dataSeries){
+    returns <- CalculateReturns(dataSeries)
+    returns<- returns[-1]
+    #Distribution of returns.
+    chart.Histogram(returns, methods = c('add.density', 'add.normal'),
+                    colorset = c('blue','green','red'))
+    # Checking outliers/white noise in returns...
+    chartSeries(returns, theme = 'white')
+    sgarch.gjr <- ugarchspec(mean.model = list(armaOrder = c(0,0)),
+                              variance.model = list(model = 'gjrGARCH'),
+                              distribution.model = 'sstd')
+    
+    sgarch.model.gjr <- ugarchfit(data = returns, spec = sgarch.gjr)
+    print(sgarch.model.gjr)
+    plot(sgarch.model.gjr, which = 'all')
+}
 
-plot(sgarch.model.sstd)
-
-sgarch.gjr <- ugarchspec(mean.model = list(armaOrder = c(0,0)),
-                          variance.model = list(model = 'gjrGARCH'),
-                          distribution.model = 'sstd')
-
-sgarch.model.gjr <- ugarchfit(data = returns, spec = sgarch.gjr)
-print(sgarch.model.gjr)
-plot(sgarch.model.gjr, which = 'all')
+run.gjr.garch.model(data$close)
 #better than previous model...skew and shape...must be lower...
 
 #Simulation...
 sfinal <- sgarch.gjr
 setfixed(sfinal) <- as.list(coef(sgarch.model.gjr))
 # fixedCoef <- as.list(coef(sgarch.model.gjr))
-f2018<- ugarchforecast(data = returns['/2018-12'],
+
+#Execute the following codes on crypto which was launched before 2020...
+#Purely for simulation purposes...
+f2018<- ugarchforecast(data = returns['/2020-12'],
                        fitORspec = sfinal,
                        n.ahead = 365)
+
 f2022 <- ugarchforecast(data = returns['/2022-09'],
                         fitORspec = sfinal,
                         n.ahead = 100)
@@ -429,7 +471,15 @@ tail(data)
 p <- 19153.87*apply(fitted(sim),2,'cumsum')+19153.87
 matplot(p, type = 'l', lwd = 3)
 
-#--------------------------------------------------------------
+#--------------------pipeline functions-----------------------------
+data <- get.crypto.data("BSB-USD") #Add Token name...ETH-USD, BTC-USD etc...
+run.arima.model(data$close) # add data$columnName...
+run.prophet.pipeline(data$close) # add data$columnName...
+run.svm.model(data$close) # add data$columnName...
+run.garch.model(data$close) # add data$columnName...
+run.sstd.garch.model(data$close) # add data$columnName...
+run.gjr.garch.model(data$close) # add data$columnName...
+#--------------------------------------------------------------------
 #Question/Answers:
 #Answer1: Yes Indeed. We can see in our analysis our models are having accuracy of 96-98%. Also we are using 95% confidence interval which means we can be 95% confident on the predictions the Models will make.
 
