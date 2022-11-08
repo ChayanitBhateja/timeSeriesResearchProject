@@ -228,6 +228,8 @@ run.arima.model(data$close)
 #Requires dataset in format ds and y ds = datetime y = the column to evaluate...
 run.prophet.pipeline <- function(dataSeries){
     #Creating Prophet Dataset...
+    dataSeries <- data$close
+
     print('creating Dataset..')
     dateData <- index(dataSeries)
     openData <- dataSeries
@@ -291,6 +293,7 @@ run.prophet.pipeline(data$close)
 #Support Vector Machine is one of the ML model which works good on Time series model along with Supervised Problems...
 # We are using regression algorithm with radial kernel...
 run.svm.model <- function(dataSeries){
+    dataSeries <- data$close
     svm.model <- svm(dataSeries~index(data), type = 'eps-regression', kernel = 'radial', cost = 0.1, gamma = 1000)
     
     one.nd <- 1:length(dataSeries)+1
@@ -367,6 +370,7 @@ run.svm.model(data$close)
 
 #If Executing the code check the p value/significance metric...
 run.garch.model <- function(dataSeries){
+    dataSeries <- data$close
     returns <- CalculateReturns(dataSeries)
     returns<- returns[-1]
     #Distribution of returns.
@@ -401,6 +405,7 @@ run.garch.model(data$close)
 
 #Skewed student T distribution...
 run.sstd.garch.model <- function(dataSeries){
+    dataSeries <- data$close
     returns <- CalculateReturns(dataSeries)
     returns<- returns[-1]
     #Distribution of returns.
@@ -423,6 +428,7 @@ run.sstd.garch.model <- function(dataSeries){
 run.sstd.garch.model(data$close)
 
 run.gjr.garch.model <- function(dataSeries){
+    dataSeries <- data$close
     returns <- CalculateReturns(dataSeries)
     returns<- returns[-1]
     #Distribution of returns.
