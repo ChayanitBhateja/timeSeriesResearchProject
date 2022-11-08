@@ -161,6 +161,7 @@ data.before.2022 <- data[data$year < 2022]
 #Using ARIMA model and comparing it with AR, MA model..
 #Using auto.arima it will automatically choose the optimal values of p,d,q based on lowered error metric. 
 run.arima.model <- function(dataSeries){
+    dataSeries <- data$close
     start.month <- month(index(dataSeries))[1]
     month <- month(index(dataSeries))[length(dataSeries)]
     start.day <- day(index(dataSeries))[1]
@@ -227,7 +228,6 @@ run.arima.model(data$close)
 #Requires dataset in format ds and y ds = datetime y = the column to evaluate...
 run.prophet.pipeline <- function(dataSeries){
     #Creating Prophet Dataset...
-    dataSeries <- data$close
     print('creating Dataset..')
     dateData <- index(dataSeries)
     openData <- dataSeries
@@ -472,7 +472,7 @@ p <- 19153.87*apply(fitted(sim),2,'cumsum')+19153.87
 matplot(p, type = 'l', lwd = 3)
 
 #--------------------pipeline functions-----------------------------
-data <- get.crypto.data("BSB-USD") #Add Token name...ETH-USD, BTC-USD etc...
+data <- get.crypto.data("DOGE-USD") #Add Token name...ETH-USD, BTC-USD etc...
 run.arima.model(data$close) # add data$columnName...
 run.prophet.pipeline(data$close) # add data$columnName...
 run.svm.model(data$close) # add data$columnName...
