@@ -36,7 +36,7 @@ get.crypto.data <- function(symbol){
     return(data)
 }
 
-data <- get.crypto.data('BTC-USD')
+data <- get.crypto.data('LTC-USD')
 
 #Chart series in candleStick format data on the month of COVID
 chartSeries(data["2020-03"])
@@ -478,7 +478,7 @@ p <- 19153.87*apply(fitted(sim),2,'cumsum')+19153.87
 matplot(p, type = 'l', lwd = 3)
 
 #--------------------pipeline functions-----------------------------
-data <- get.crypto.data("DOGE-USD") #Add Token name...ETH-USD, BTC-USD etc...
+data <- get.crypto.data("LTC-USD") #Add Token name...ETH-USD, BTC-USD etc...
 run.arima.model(data$close) # add data$columnName...
 run.prophet.pipeline(data$close) # add data$columnName...
 run.svm.model(data$close) # add data$columnName...
