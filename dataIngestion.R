@@ -10,6 +10,7 @@
 # tensorflow::install_tensorflow()
 # install.packages('rugarch')
 # install.packages('PerformanceAnalytics')
+# install.packages('writexl')
 library(zoo)
 library(ggplot2)
 library(pdfetch)
@@ -27,6 +28,7 @@ library(keras)
 library(rugarch)
 library(PerformanceAnalytics)
 library(tseries)
+library(writexl)
 
 #Loading data from yahoo finance...
 #BTC-USD, ETH-USD, BSB-USD
@@ -36,7 +38,18 @@ get.crypto.data <- function(symbol){
     return(data)
 }
 
-data <- get.crypto.data('LTC-USD')
+data <- get.crypto.data('ETH-USD')
+
+#EDA..
+summary(data)
+write_xlsx(data.frame(summary(data)), "summaryETH.xlsx")
+for (col in colnames(data)) {
+    print(paste('sd: ',col,sd(data[,col])))
+    hist(data[,col])
+    print(paste('skewness',col,skewness(data[,col])))
+    print(paste('kurtosis',col,kurtosis(data[,col])))
+
+}
 
 #Chart series in candleStick format data on the month of COVID
 chartSeries(data["2020-03"])
@@ -47,6 +60,18 @@ chartSeries(data)
 #Calculating returns for further usage....
 returns <- CalculateReturns(data$close)
 returns<- returns[-1]
+returns$year <- year(as.POSIXlt(index(returns), format = "%d/%m/%Y"))
+unique(returns$year)
+for (year in unique(returns$year)) {
+    print(year)
+    print(min(returns[returns$year == year, 'close']))
+    print(max(returns[returns$year == year, 'close']))
+    print(mean(returns[returns$year == year, 'close']))
+    print(median(returns[returns$year == year, 'close']))
+    print(sd(returns[returns$year == year, 'close']), na.rm = TRUE)
+    print(paste('skewness',skewness(returns[returns$year == year, 'close'])))
+    print(paste('kurtosis',kurtosis(returns[returns$year == year, 'close'])))
+}
 #Distribution of returns.
 chart.Histogram(returns, methods = c('add.density', 'add.normal'),
                 colorset = c('blue','green','red'))
@@ -104,7 +129,7 @@ ggplot(data = covid.period, aes(x = as.POSIXct(index(covid.period), format="%d/%
 scale_colour_manual(name = "year", aesthetics = "colour",values = c("covid" = "red"))+
     scale_x_datetime(date_labels = "%b", date_breaks = "2 month")+
     xlab('Month of year 2020 - 2022')+
-    ylab('BTC-USD Open Price')+
+    ylab('DOGE-USD Open Price')+
 theme_minimal()
 
 #Inprogress....
@@ -161,7 +186,7 @@ data.before.2022 <- data[data$year < 2022]
 #Using ARIMA model and comparing it with AR, MA model..
 #Using auto.arima it will automatically choose the optimal values of p,d,q based on lowered error metric. 
 run.arima.model <- function(dataSeries){
-    dataSeries <- data$close
+    dataSeries <- data.before.2022$close
     start.month <- month(index(dataSeries))[1]
     month <- month(index(dataSeries))[length(dataSeries)]
     start.day <- day(index(dataSeries))[1]
@@ -173,7 +198,7 @@ run.arima.model <- function(dataSeries){
     #Stationary Test...arima model wont test stationary on its own.
     adf.test(dataSeries)
     #Main arima model...this will find optimal value for p,d,q...
-    auto.model <- auto.arima(closedata, ic = 'aic', trace = TRUE, D=1)
+    auto.model <- auto.arima(closedata, ic = 'aic', D=1)
     print(auto.model)
     print('Forecasting for 1 day...')
     auto.forecast <- forecast(auto.model, level = c(95), h = 1)
@@ -199,7 +224,9 @@ run.arima.model <- function(dataSeries){
     print(accuracy(ar.forecast))
     print('ma.forecast Accuracy: ')
     print(accuracy(ma.forecast))
-
+    
+    print(accuracy(auto.forecast))
+    AIC(auto.model)
     #Plotting fit and forecast....
     #All red coloured lines are arima model lines...
     # Primariy considering arima model..
@@ -228,7 +255,7 @@ run.arima.model(data$close)
 #Requires dataset in format ds and y ds = datetime y = the column to evaluate...
 run.prophet.pipeline <- function(dataSeries){
     #Creating Prophet Dataset...
-    dataSeries <- data$close
+    dataSeries <- data.before.2022$close
 
     print('creating Dataset..')
     dateData <- index(dataSeries)
@@ -242,7 +269,7 @@ run.prophet.pipeline <- function(dataSeries){
     
     #Creating Prophet Model...
     print('Creating Prophet Model...')
-    prophet.model <- prophet(prophet.dataset)
+    prophet.model <- prophet(prophet.dataset, daily.seasonality = TRUE)
     #adding 365 days more to date in prophet model...
     anotherDayFuture <- make_future_dataframe(prophet.model, periods = 1)
     futureInQuarter <- make_future_dataframe(prophet.model, periods = 90)
@@ -280,6 +307,10 @@ run.prophet.pipeline <- function(dataSeries){
     abline(lm(pred~actual), col = 'red')
     print(summary(lm(pred~actual)))
     print('Cross Validation...')
+    
+    RMSE = sqrt(mean((data['/20220629']$close - forecast$yhat)^2))
+    print(RMSE)
+    MAPE(forecast$yhat,data['/20220629']$close)
     cs<-cross_validation(prophet.model, 365, units = 'days')
     print(performance_metrics(cs, rolling_window = 0.1))
     
@@ -293,8 +324,8 @@ run.prophet.pipeline(data$close)
 #Support Vector Machine is one of the ML model which works good on Time series model along with Supervised Problems...
 # We are using regression algorithm with radial kernel...
 run.svm.model <- function(dataSeries){
-    dataSeries <- data$close
-    svm.model <- svm(dataSeries~index(data), type = 'eps-regression', kernel = 'radial', cost = 0.1, gamma = 1000)
+    dataSeries <- data.before.2022$close
+    svm.model <- svm(dataSeries~index(data.before.2022), type = 'eps-regression', kernel = 'radial', cost = 0.1, gamma = 1000)
     
     one.nd <- 1:length(dataSeries)+1
     quarter.nd <- 1:length(dataSeries)+90
@@ -370,7 +401,7 @@ run.svm.model(data$close)
 
 #If Executing the code check the p value/significance metric...
 run.garch.model <- function(dataSeries){
-    dataSeries <- data$close
+    dataSeries <- data.before.2022$close
     returns <- CalculateReturns(dataSeries)
     returns<- returns[-1]
     #Distribution of returns.
@@ -428,7 +459,7 @@ run.sstd.garch.model <- function(dataSeries){
 run.sstd.garch.model(data$close)
 
 run.gjr.garch.model <- function(dataSeries){
-    dataSeries <- data$close
+    dataSeries <- data.before.2022$close
     returns <- CalculateReturns(dataSeries)
     returns<- returns[-1]
     #Distribution of returns.
@@ -442,7 +473,9 @@ run.gjr.garch.model <- function(dataSeries){
     
     sgarch.model.gjr <- ugarchfit(data = returns, spec = sgarch.gjr)
     print(sgarch.model.gjr)
-    plot(sgarch.model.gjr, which = 'all')
+    garch.forecast <- ugarchforecast(sgarch.model.gjr, n.ahead = 90)
+    plot(garch.forecast)
+    plot(sgarch.model.gjr)
 }
 
 run.gjr.garch.model(data$close)
@@ -459,24 +492,25 @@ f2018<- ugarchforecast(data = returns['/2020-12'],
                        fitORspec = sfinal,
                        n.ahead = 365)
 
-f2022 <- ugarchforecast(data = returns['/2022-09'],
+f2022 <- ?ugarchforecast(data = returns['/2022-09'],
                         fitORspec = sfinal,
                         n.ahead = 100)
 par(mfrow = c(2,1))
+plot(fitted(f2022))
 plot(sigma(f2018), main='volatility')
 plot(sigma(f2022))
 
 sim <- ugarchpath(spec = sfinal,
-                  m.sim = 3,
+                  m.sim = 1,
                   n.sim = 1*100,
                   rseed = 123)
+print(accuracy(f2022))
 plot.zoo(fitted(sim))
 plot.zoo(sigma(sim))
 par(mfrow = c(1,1))
 tail(data)
 p <- 19153.87*apply(fitted(sim),2,'cumsum')+19153.87
-matplot(p, type = 'l', lwd = 3)
-
+plot(p, type = 'l', lwd = 3)
 #--------------------pipeline functions-----------------------------
 data <- get.crypto.data("LTC-USD") #Add Token name...ETH-USD, BTC-USD etc...
 run.arima.model(data$close) # add data$columnName...
@@ -496,7 +530,6 @@ run.gjr.garch.model(data$close) # add data$columnName...
 #Answer4: It Depends on the model, the Nature of model, amount of data, seasonality and Volatility of market. to have One common model for all...might be tough call but to say in our scenario we can consider ARIMA or GARCH model because GARCH Model is effective on Volatile market data like Cryto Market. And ARIMA is a model which takes into consideration the Moving Average of Data and ACF and PACF as major points.
 
 #Answer5: Macro Economics directly or indirectly affect the sentiments of Crypto Market. Some Big Events like Involvement of Elon Musk into Crypto Market...COVID-19 and RUSSIA-UKRAINE WAR put direct effect on Crypto Prices...Talking about Covid here...in early phases we see that there was a sudden drop in crypto prices during first lock down...as lockdown pushed off...we can see big surge in crypto prices...during early 2021 and during 2021 when 2nd wave hit. People leaned towards regualting and trading crypto on daily basis leads to high demand and prices of crypto currencies. And during late 2021 and early 2022 we can see drop in crypto prices as several nation's govt imposed crypto ban or strict laws on circulating crypto currency which lead to downfall during jan 2022. 
-
 
 
 
